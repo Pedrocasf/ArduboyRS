@@ -1,0 +1,13 @@
+[package]
+name = "avr-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+log = { version = "0.4.22", default-features = false, optional = true }
+simple-logging = { version = "2.0.2", optional = true }
+
+[features]
+default = ["log", "std"]
+std = []
+log = ["dep:simple-logging", "dep:log"]
