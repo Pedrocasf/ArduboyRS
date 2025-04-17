@@ -1,0 +1,16 @@
+[workspace]
+members = [
+    "arduboy-bin",
+    "avr-core"
+]
+[profile.dev]
+panic = "abort"
+lto = true
+opt-level = 3
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+debug = false
+lto = true
+opt-level = 3
