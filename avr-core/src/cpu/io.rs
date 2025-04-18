@@ -1,6 +1,4 @@
 use core::ops::{Index, IndexMut};
-use crate::cpu::data_memory::{DataMemory, IOS_ADDR, IOS_SIZE, REG_ADDR, REG_SIZE};
-
 pub struct IOs{
 
 }
@@ -17,7 +15,7 @@ impl Index<u16> for IOs {
 }
 
 impl IndexMut<u16> for IOs {
-    fn index_mut(&mut self, index: u16) -> &u8 {
+    fn index_mut(&mut self, index: u16) -> &mut u8 {
         panic!("io {:x?} write accessed", index);
     }
 }

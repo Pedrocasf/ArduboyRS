@@ -1,15 +1,15 @@
-use alloc::vec::Vec;
-use core::ops::{Index, IndexMut};
-use crate::cpu::data_memory::DataMemory;
-
+use core::ops::Index;
+use crate::cpu::kind::AVR_TYPE;
 pub struct Flash {
-    flash: Vec<u16>
+    flash: [u16;AVR_TYPE.flash_size as usize],
 }
 impl Flash {
     pub fn new(rom_file:&[u16]) -> Flash {
-        let file = rom_file.to_vec();
+        if rom_file.len() > AVR_TYPE.flash_size as usize {
+            panic!("Flash file is too large");
+        }
         Flash{
-            flash:file
+            flash:rom_file.try_into().unwrap(),
         }
     }
 }
@@ -17,10 +17,5 @@ impl Index<u16> for Flash {
     type Output = u16;
     fn index(&self, index: u16) -> &u16 {
         &self.flash[index as usize]
-    }
-}
-impl IndexMut<u16> for Flash {
-    fn index_mut(&mut self, index: u16) -> &u16 {
-        panic!("can not write to flash memory at address {:#x?}", index);
     }
 }

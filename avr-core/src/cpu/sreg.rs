@@ -1,5 +1,5 @@
 use core::ops::{Index, IndexMut};
-
+#[derive(Copy, Clone)]
 pub enum Flag{
     C,
     Z,
@@ -10,6 +10,7 @@ pub enum Flag{
     T,
     I
 }
+#[derive(Copy, Clone)]
 pub struct Sreg{
     flags:[bool;8]
 }
@@ -37,7 +38,7 @@ impl Index<u8> for Sreg{
     }
 }
 impl IndexMut<Flag> for Sreg{
-    fn index_mut(&mut self, idx: Flag) -> &bool{
+    fn index_mut(&mut self, idx: Flag) -> &mut bool{
         &mut self.flags[idx as usize]
     }
 }

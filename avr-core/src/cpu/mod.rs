@@ -4,6 +4,7 @@ mod fuses;
 mod data_memory;
 mod io;
 mod flash;
+mod exios;
 
 use alloc::{vec, vec::Vec};
 use kind::AVRKind;
@@ -23,7 +24,7 @@ pub struct CPU{
 }
 impl CPU{
     pub fn new(rom_file:&[u16],kind:AVRKind ) -> CPU{
-        let len = kind.flash_size;
+        let len = kind.flash_size as usize;
         if rom_file.len() > len{
             panic!("ROM file is too large!");
         }
@@ -31,7 +32,7 @@ impl CPU{
             fuses: Fuses::new(kind.fuses),
             status: Sreg::new(),
             flash: Flash::new(rom_file),
-            data_memory: DataMemory::new(kind: AVRKind),
+            data_memory: DataMemory::new(),
             pc: 0,
         }
     }
@@ -40,6 +41,7 @@ impl CPU{
     }
     pub fn run(&mut self){
         let instr = self.short_instr();
+        LUT_UPPER[instr as usize >> 12](self);
         #[cfg(std)]
         println!("Instr:{:x} \n PC:{:x}",instr, pc);
     }

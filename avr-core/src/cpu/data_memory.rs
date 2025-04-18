@@ -1,89 +1,58 @@
-use alloc::vec;
-use alloc::vec::Vec;
 use core::ops::{Index, IndexMut};
+use crate::cpu::exios::ExIOs;
 use crate::cpu::io::IOs;
-use crate::cpu::kind::AVRKind;
-pub const REG_ADDR:usize = 0x00;
-pub const REG_SIZE:usize = 0x20;
-pub const IOS_ADDR:usize = REG_ADDR + REG_SIZE;
-pub const IOS_SIZE:usize = 0x40;
+use crate::cpu::kind::{AVRKind, AVR_TYPE};
+pub enum IndexRegisters{
+    X,Y,Z
+}
+pub const REG_ADDR:u16 = 0x00;
+pub const REG_SIZE:u16 = 0x20;
+pub const REG_RANGE:u16 = REG_ADDR + REG_SIZE;
+pub const IOS_ADDR:u16 = REG_ADDR + REG_SIZE;
+pub const IOS_SIZE:u16 = 0x3F;
+pub const IOS_RANGE:u16 = IOS_ADDR + IOS_SIZE;
+pub const EXIOS_ADDR:u16 = IOS_ADDR + IOS_SIZE;
+pub const EXIOS_SIZE:u16 = AVR_TYPE.exios_size+1;
+pub const EXIOS_RANGE:u16 = EXIOS_ADDR+EXIOS_SIZE;
+pub const SRAM_ADDR:u16 = EXIOS_ADDR+EXIOS_ADDR;
+pub const SRAM_SIZE:u16 = AVR_TYPE.sram_size;
+pub const SRAM_RANGE:u16 = SRAM_ADDR+SRAM_SIZE;
 pub struct DataMemory {
-    regs: [u8;REG_SIZE],
-    ios_size:usize,
+    regs: [u8;REG_SIZE as usize],
     ios: IOs,
-    exios_size:Option<usize>,
-    exios:Option<Vec<u8>>,
-    sram_size:usize,
-    sram: Vec<u8>,
+    exios: ExIOs,
+    sram: [u8;AVR_TYPE.sram_size as usize],
 }
 impl DataMemory {
-    pub fn new(kind:AVRKind) -> DataMemory {
-        if let Some(exios) = kind.exios {
-            return DataMemory {
-                regs: [0; REG_SIZE],
-                ios_size:kind.ios,
-                ios: IOs::new(),
-                exios_size:Some(exios),
-                exios: Some(vec![0; exios]),
-                sram_size:kind.sram_size,
-                sram: vec![0; kind.sram_size],
-            }
-        }
+    pub fn new() -> DataMemory {
         DataMemory {
-            regs: [0; REG_SIZE],
-            ios_size:kind.ios,
+            regs: [0; REG_SIZE as usize],
             ios: IOs::new(),
-            exios_size:None,
-            exios: None,
-            sram_size:kind.sram_size,
-            sram: vec![0; kind.sram_size],
+            exios: ExIOs::new(),
+            sram:[0;AVR_TYPE.sram_size as usize],
         }
     }
 }
 impl Index<u16> for DataMemory {
     type Output = u8;
     fn index(&self, index: u16) -> &u8 {
-        let reg_addr = REG_ADDR as u16;
-        let reg_size = REG_SIZE as u16;
-        let reg_range = reg_addr + reg_size;
-        let ios_addr = IOS_ADDR as u16;
-        let ios_size = IOS_SIZE as u16;
-        let ios_range = ios_addr+ios_size;
-        let exios_addr = ios_range;
-        let exios_size = if self.exios.is_some() { self.exios_size.unwrap() as u16} else {0};
-        let exios_range = exios_addr + exios_size;
-        let sram_addr = exios_addr + exios_size;
-        let sram_size = self.sram_size as u16;
-        let sram_range = sram_addr+sram_size;
         match index {
-            reg_addr..reg_size => &self.regs[index as usize],
-            ios_addr..ios_range=> &self.ios[index as usize - reg_range as usize],
-            exios_addr..exios_range => &self.exios[index as usize - ios_range as usize],
-            sram_addr..sram_range => &self.sram[index as usize - exios_range as usize],
+            REG_ADDR..REG_SIZE => &self.regs[index as usize],
+            IOS_ADDR..IOS_RANGE => &self.ios[index - REG_RANGE],
+            EXIOS_ADDR..EXIOS_RANGE => &self.exios[index - IOS_RANGE],
+            SRAM_ADDR..SRAM_RANGE => &self.sram[index as usize - EXIOS_RANGE as usize],
             _=> unreachable!()
             }
         }
     }
 
 impl IndexMut<u16> for DataMemory {
-    fn index_mut(&mut self, index: u16) -> &u8 {
-        let reg_addr = REG_ADDR as u16;
-        let reg_size = REG_SIZE as u16;
-        let reg_range = reg_addr + reg_size;
-        let ios_addr = IOS_ADDR as u16;
-        let ios_size = IOS_SIZE as u16;
-        let ios_range = ios_addr+ios_size;
-        let exios_addr = ios_range;
-        let exios_size = if self.exios.is_some() { self.exios_size.unwrap() as u16} else {0};
-        let exios_range = exios_addr + exios_size;
-        let sram_addr = exios_addr + exios_size;
-        let sram_size = self.sram_size as u16;
-        let sram_range = sram_addr+sram_size;
+    fn index_mut(&mut self, index: u16) -> &mut u8 {
         match index {
-            reg_addr..reg_size => &mut self.regs[index as usize],
-            ios_addr..ios_range=> &mut self.ios[index as usize - reg_range as usize],
-            exios_addr..exios_range => &mut self.exios[index as usize - ios_range as usize],
-            sram_addr..sram_range => &mut self.sram[index as usize - exios_range as usize],
+            REG_ADDR..REG_SIZE => &mut self.regs[index as usize],
+            IOS_ADDR..IOS_RANGE => &mut self.ios[index - REG_RANGE],
+            EXIOS_ADDR..EXIOS_RANGE => &mut self.exios[index - IOS_RANGE],
+            SRAM_ADDR..SRAM_RANGE => &mut self.sram[index as usize - EXIOS_RANGE as usize],
             _=> unreachable!()
         }
     }

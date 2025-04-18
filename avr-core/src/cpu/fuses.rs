@@ -1,6 +1,4 @@
-use core::ops::{Index, IndexMut};
-use crate::cpu::sreg::{Flag, Sreg};
-
+use core::ops::Index;
 pub enum Fuse{
     L,
     H,
