@@ -12,7 +12,14 @@ const ATtiny13A: AVRKind = AVRKind{
     ios_size:64,
     exios_size:0
 };
-pub const AVR_TYPE:AVRKind = ATtiny13A;
+const ATMega32u4: AVRKind = AVRKind{
+    flash_size: 0x8000,
+    sram_size: 0x0A00,
+    fuses:[0xFF,0xD2,0xCB, 0x3F],
+    ios_size:0x40,
+    exios_size:0xA0
+};
+pub const AVR_TYPE:AVRKind = ATMega32u4;
 /*macro_rules! AVRType {
     ($val:literal) => {};
 }*/
