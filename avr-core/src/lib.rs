@@ -15,7 +15,7 @@ mod tests{
     #[test]
     pub fn main(){
         let args: Vec<String> = env::args().collect();
-        let path = "../ATtiny13AGameOfLife.bin";
+        let path = "../ardynia.ino.with_bootloader.bin";
         // let file = fs::read(args[1].clone()).unwrap();
         let file = fs::read(path).unwrap();
         let file_u16: Vec<u16> = file.chunks_exact(2)

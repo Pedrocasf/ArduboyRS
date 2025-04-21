@@ -3,7 +3,6 @@ mod sreg;
 mod fuses;
 mod data_memory;
 mod io;
-mod flash;
 mod exios;
 
 use alloc::{vec, vec::Vec};
@@ -13,15 +12,16 @@ use crate::cpu::fuses::Fuses;
 use crate::cpu::sreg::Flag;
 use sreg::Sreg;
 use crate::cpu::data_memory::DataMemory;
-use crate::cpu::flash::Flash;
+use crate::cpu::kind::AVR_TYPE;
 
 pub struct CPU{
     fuses: Fuses,
     status: Sreg,
-    flash: Flash,
+    instr_array:[fn(&mut CPU);AVR_TYPE.flash_size as usize],
     data_memory: DataMemory,
     pc:u16,
 }
+
 impl CPU{
     pub fn new(rom_file:&[u16],kind:AVRKind ) -> CPU{
         let len = kind.flash_size as usize;
@@ -31,27 +31,31 @@ impl CPU{
         CPU {
             fuses: Fuses::new(kind.fuses),
             status: Sreg::new(),
-            flash: Flash::new(rom_file),
+            instr_array:translate(rom_file),
             data_memory: DataMemory::new(),
             pc: 0,
         }
     }
-    fn short_instr(&mut self)->u16{
-        self.flash[self.pc]
-    }
     pub fn run(&mut self){
-        let instr = self.short_instr();
-        LUT_UPPER[instr as usize >> 12](self);
+        self.instr_array[self.pc as usize](self);
         #[cfg(std)]
         println!("Instr:{:x} \n PC:{:x}",instr, pc);
     }
     pub fn halt(&mut self)->u8{
-        panic!("HALT at {:x?}, instr:{:x?}", self.pc, self.flash[self.pc])
+        panic!("HALT at {:x?}, instr:{:x?}", self.pc, self.instr_array[self.pc as usize])
     }
 }
-pub const LUT_UPPER: [fn(&mut CPU)->u8; 0x10] = [
-    CPU::halt,CPU::halt,CPU::halt,CPU::halt,
-    CPU::halt,CPU::halt,CPU::halt,CPU::halt,
-    CPU::halt,CPU::halt,CPU::halt,CPU::halt,
-    CPU::halt,CPU::halt,CPU::halt,CPU::halt,
-];
+pub fn translate(data:&[u16])->[fn(&mut CPU);AVR_TYPE.flash_size as usize]{
+    let mut r = Vec::new();
+    for d in data.iter().take(2){
+        let op0 = ((d & 0xF000) >> 12) as u8;
+        let op1 = ((d & 0x0F00) >> 08) as u8;
+        let op2 = ((d & 0x00F0) >> 04) as u8;
+        let op3 = ((d & 0x000F) >> 00) as u8;
+        match (op0,op1,op2,op3) {
+            
+            (_,_,_,_) => panic!("Unsupported instruction, {:#x?}", d),
+        }
+    }
+    r.try_into().unwrap()
+}

@@ -13,7 +13,7 @@ const ATtiny13A: AVRKind = AVRKind{
     exios_size:0
 };
 const ATMega32u4: AVRKind = AVRKind{
-    flash_size: 0x8000,
+    flash_size: 0x4000,
     sram_size: 0x0A00,
     fuses:[0xFF,0xD2,0xCB, 0x3F],
     ios_size:0x40,
