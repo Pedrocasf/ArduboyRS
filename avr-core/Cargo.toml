@@ -7,7 +7,12 @@ edition = "2024"
 log = { version = "0.4.22", default-features = false, optional = true }
 simple-logging = { version = "2.0.2", optional = true }
 
+
+[dev-dependenciese]
+minifb = { version = "0.28", optional = true }
+
 [features]
-default = ["log", "std"]
+default = []
+minifb = []
 std = []
 log = ["dep:simple-logging", "dep:log"]
