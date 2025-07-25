@@ -1,3 +1,4 @@
+use std::println;
 pub mod kind;
 mod sreg;
 mod fuses;
@@ -19,7 +20,6 @@ use crate::cpu::kind::AVR_TYPE;
 
 pub struct CPU{
     fuses: Fuses,
-    status: Sreg,
     instr_array:[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize],
     data_memory: DataMemory,
     pc:u16,
@@ -33,7 +33,6 @@ impl CPU{
         }
         CPU {
             fuses: Fuses::new(kind.fuses),
-            status: Sreg::new(),
             instr_array:CPU::translate(rom_file),
             data_memory: DataMemory::new(),
             pc: 0,
@@ -73,6 +72,21 @@ impl CPU{
         let pc = self.pc as i16;
         self.pc = (sk + pc) as u16;
     }
+    pub fn reti(&mut self, data:InstructionData){
+        let sph = self.data_memory[0x5E] as u16;
+        let spl = self.data_memory[0x5D] as u16;
+        let sp = sph << 8 | spl;
+        let pch = self.data_memory[sp] as u16;
+        let pcl = self.data_memory[sp+1] as u16;
+        let sp = sp+2;
+        self.data_memory[0x5E] = (sp >> 8) as u8;
+        self.data_memory[0x5D] = spl as u8;
+        let pc = pch << 8 | pcl;
+        let sreg = Sreg(self.data_memory[0x5F]);
+        self.data_memory[0x5F] = Sreg::new
+        self.pc = pc;
+
+    }
     pub fn translate(data:&[u16])->[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize]{
         let mut r:[(fn(&mut CPU, InstructionData), InstructionData );AVR_TYPE.flash_size as usize] = [(CPU::halt,InstructionData::NILL); AVR_TYPE.flash_size as usize];
         let data_len = data.len();
@@ -84,10 +98,14 @@ impl CPU{
             let op2 = ((d & 0x00F0) >> 04) as u8;
             let op3 = ((d & 0x000F) >> 00) as u8;
             match (op0,op1,op2,op3) {
+                (0x9,0x5,0x1,0x8) =>{
+                    r[i] = (CPU::reti, InstructionData::NILL);
+                    println!("reti i:{:x}", i);
+                },
                 (0xC,_,_,_) => {
                     r[i] = (CPU::rjmp, InstructionData::SK(((data[i]<<4)as i16)>>4));
                     println!("rjmp i:{:x}", i);
-                }
+                },
                 (0x9,0x4,_,0xC) |(0x9,0x4,_,0xD) | (0x9,0x5,_,0xC)| (0x9,0x5,_,0xD)=>{
                     r[i] = (CPU::jmp,InstructionData::K(data[i+1]));
 

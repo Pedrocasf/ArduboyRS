@@ -12,7 +12,7 @@ simple-logging = { version = "2.0.2", optional = true }
 minifb = { version = "0.28", optional = true }
 
 [features]
-default = []
+default = ["std"]
 minifb = []
 std = []
 log = ["dep:simple-logging", "dep:log"]

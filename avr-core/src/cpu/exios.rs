@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 use crate::cpu::sreg::Sreg;
 #[derive(Copy, Clone)]
 pub struct ExIOs{

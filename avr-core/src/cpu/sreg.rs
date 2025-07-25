@@ -11,34 +11,68 @@ pub enum Flag{
     I
 }
 #[derive(Copy, Clone)]
-pub struct Sreg{
-    flags:[bool;8]
-}
+pub struct Sreg(pub u8);
 impl Sreg{
     pub fn new() -> Self{
-        Sreg{
-            flags:[false;8]
-        }
+        Sreg(0)
     }
-}
-impl Index<Flag> for Sreg{
-    type Output = bool;
-    fn index(&self, idx: Flag) -> &bool{
-        &self.flags[idx as usize]
+    fn sets(&mut self,val:bool,shift:u8){
+        let val = (val as u8) << shift;
+        let mask = 1 << shift;
+        self.0&=!mask;
+        self.0|=val;
     }
-}
-impl Index<u8> for Sreg{
-    type Output = bool;
-    fn index(&self, idx:u8) -> &bool{
-        if idx < 8{
-           return &self.flags[idx as usize];
-        }
-        panic!("Index out of bounds");
+    pub fn set_i(&mut self,val:bool){
+        self.sets(val,7);
+    }
+    pub fn set_t(&mut self,val:bool){
+        self.sets(val,6);
+    }
+    pub fn set_h(&mut self,val:bool){
+        self.sets(val,5);
+    }
+    pub fn set_s(&mut self,val:bool){
+        self.sets(val,4);
+    }
+    pub fn set_v(&mut self,val:bool){
+        self.sets(val,3);
+    }
+    pub fn set_n(&mut self,val:bool){
+        self.sets(val,2);
+    }
+    pub fn set_z(&mut self,val:bool){
+        self.sets(val,1);
+    }
+    pub fn set_c(&mut self,val:bool){
+        self.sets(val,0);
+    }
 
+    fn gets(self,shift:u8) ->bool{
+        let val = self.0 >> shift;
+        val&1 == 1
     }
-}
-impl IndexMut<Flag> for Sreg{
-    fn index_mut(&mut self, idx: Flag) -> &mut bool{
-        &mut self.flags[idx as usize]
+    pub fn get_i(&self) -> bool{
+        self.gets(7)
+    }
+    pub fn get_t(&self) -> bool{
+        self.gets(6)
+    }
+    pub fn get_h(&self) -> bool{
+        self.gets(5)
+    }
+    pub fn get_s(&self) -> bool{
+        self.gets(4)
+    }
+    pub fn get_v(&self) -> bool{
+        self.gets(3)
+    }
+    pub fn get_n(&self) -> bool{
+        self.gets(2)
+    }
+    pub fn get_z(&self) -> bool{
+        self.gets(1)
+    }
+    pub fn get_c(&self) -> bool{
+        self.gets(0)
     }
 }
