@@ -7,12 +7,9 @@ mod io;
 mod exios;
 mod instructions;
 
-use alloc::{vec, vec::Vec};
 use core::ops::{IndexMut, Index};
 use kind::AVRKind;
-use crate::cpu;
 use crate::cpu::fuses::Fuses;
-use crate::cpu::sreg::Flag;
 use sreg::Sreg;
 use crate::cpu::data_memory::DataMemory;
 use crate::cpu::instructions::InstructionData;
@@ -44,7 +41,7 @@ impl CPU{
         #[cfg(std)]
         println!("Instr:{:x} \n PC:{:x}",instr, pc);
     }
-    pub fn halt(&mut self,  data:InstructionData){
+    pub fn halt(&mut self,  _data:InstructionData){
         panic!("HALT at {:x?}", self.pc)
     }
     pub fn jmp(&mut self,  data:InstructionData){
@@ -72,7 +69,7 @@ impl CPU{
         let pc = self.pc as i16;
         self.pc = (sk + pc) as u16;
     }
-    pub fn reti(&mut self, data:InstructionData){
+    pub fn reti(&mut self, _data:InstructionData){
         let sph = self.data_memory[0x5E] as u16;
         let spl = self.data_memory[0x5D] as u16;
         let sp = sph << 8 | spl;
@@ -82,9 +79,32 @@ impl CPU{
         self.data_memory[0x5E] = (sp >> 8) as u8;
         self.data_memory[0x5D] = spl as u8;
         let pc = pch << 8 | pcl;
-        let sreg = Sreg(self.data_memory[0x5F]);
-        self.data_memory[0x5F] = Sreg::new
+        let mut sreg = Sreg(self.data_memory[0x5F]);
+        sreg.set_i(true);
+        self.data_memory[0x5F] = sreg.0;
         self.pc = pc;
+    }
+    pub fn cpse(&mut self, data:InstructionData){
+        let InstructionData::DR(d, r) = data else {
+            unreachable!();
+        };
+        if self.data_memory[d as u16] == self.data_memory[r as u16]{
+            self.pc += 1;
+        }
+        self.pc += 1;
+    }
+    pub fn muls(&mut self, data:InstructionData){
+        let InstructionData::DR(d, r) = data else {
+            unreachable!();
+        };
+        let rd = self.data_memory[d as u16+16] as i16;
+        let rr = self.data_memory[r as u16+16] as i16;
+        let mult = rd * rr;
+        let mut sreg = Sreg(self.data_memory[0x5F]);
+        sreg.set_c((mult & (1<<15)) == (1<<15));
+        sreg.set_z(mult == 0);
+        self.data_memory[0] = mult as u8;
+        self.data_memory[1] = (mult >> 8) as u8;
 
     }
     pub fn translate(data:&[u16])->[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize]{
@@ -98,6 +118,18 @@ impl CPU{
             let op2 = ((d & 0x00F0) >> 04) as u8;
             let op3 = ((d & 0x000F) >> 00) as u8;
             match (op0,op1,op2,op3) {
+                (0x0, 0x2, _, _) =>{
+                    let dest = (data[i]>>4)& 0x000F;
+                    let reg = data[i] & 0x000F;
+                    r[i] = (CPU::muls, InstructionData::DR(dest as u8, reg as u8));
+                    println!("muls d:{:x}, r:{:x}, i:{:x}", dest, reg, i);
+                }
+                (0x1, 0x0, _, _) |(0x1, 0x1, _, _) | (0x1, 0x2, _, _) | (0x1, 0x3, _, _) =>{
+                    let dest = (data[i] & 0x01F0) >> 4;
+                    let reg = (data[i] & 0x000F) |((data[i] & 0x0200) >> 5);
+                    r[i] = (CPU::cpse, InstructionData::DR(dest as u8, reg as u8));
+                    println!("cpse d:{:x}, r:{:x}, i:{:x}", dest, reg, i);
+                },
                 (0x9,0x5,0x1,0x8) =>{
                     r[i] = (CPU::reti, InstructionData::NILL);
                     println!("reti i:{:x}", i);
