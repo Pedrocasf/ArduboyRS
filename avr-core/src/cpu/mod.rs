@@ -6,6 +6,7 @@ mod data_memory;
 mod io;
 mod exios;
 mod instructions;
+mod lazy_flags;
 
 use core::ops::{IndexMut, Index};
 use std::path::absolute;
@@ -13,8 +14,12 @@ use kind::AVRKind;
 use crate::cpu::fuses::Fuses;
 use sreg::Sreg;
 use crate::cpu::data_memory::DataMemory;
+use crate::cpu::instructions::Instruction::*;
 use crate::cpu::instructions::InstructionData;
+use crate::cpu::instructions::InstructionData::BR;
 use crate::cpu::kind::AVR_TYPE;
+use crate::cpu::lazy_flags::*;
+
 pub const SPL: u16 = 0x5D;
 pub const SPH: u16 = 0x5E;
 pub const SREG:u16 = 0x5F;
@@ -22,6 +27,7 @@ pub struct CPU{
     fuses: Fuses,
     instr_array:[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize],
     data_memory: DataMemory,
+    lazy_flags: LazyFlags,
     pc:u16,
 }
 
@@ -35,6 +41,7 @@ impl CPU{
             fuses: Fuses::new(kind.fuses),
             instr_array:CPU::translate(rom_file),
             data_memory: DataMemory::new(),
+            lazy_flags: LazyFlags::new(),
             pc: 0,
         }
     }
@@ -60,13 +67,13 @@ impl CPU{
         let InstructionData::DR(d,r) = data else {
             unreachable!();
         };
-        self.data_memory[d as u16] ^= self.data_memory[r as u16];
-        let mut sreg = Sreg(self.data_memory[SREG]);
-        sreg.set_v(false);
-        sreg.set_n(self.data_memory[d as u16] & 0x80 == 0x80);
-        sreg.set_z(self.data_memory[d as u16] & 0x00 == 0x00);
-        sreg.set_s(self.data_memory[d as u16] & 0x80 == 0x80);
-        self.data_memory[SREG] = sreg.0;
+        let op1 = self.data_memory[r as u16];
+        let op2 = self.data_memory[d as u16];
+        self.lazy_flags.op1 = op1;
+        self.lazy_flags.op2 = op2;
+        let res = op1 ^ op2;
+        self.data_memory[d as u16] = res;
+        self.lazy_flags.res = res as i16;
         #[cfg(feature = "std")]
         println!("EOR at {:x?}", self.pc);
         self.pc += 1;
@@ -123,13 +130,12 @@ impl CPU{
         };
         let rd = self.data_memory[d as u16] as i16;
         let rr = self.data_memory[r as u16+16] as i16;
+        self.lazy_flags.op1 = rd as u8;
+        self.lazy_flags.op2 = rr as u8;
         let mult = rd * rr;
-        let mut sreg = Sreg(self.data_memory[SREG]);
-        sreg.set_c((mult & (1<<15)) == (1<<15));
-        sreg.set_z(mult == 0);
+        self.lazy_flags.res = mult;
         self.data_memory[0] = mult as u8;
         self.data_memory[1] = (mult >> 8) as u8;
-        self.data_memory[SREG] = sreg.0;
         #[cfg(feature = "std")]
         println!("MULS at {:x?}", self.pc);
     }
@@ -138,13 +144,10 @@ impl CPU{
             unreachable!();
         };
         let rd = self.data_memory[reg as u16] as i8;
+        self.lazy_flags.op1 = rd as u8;
+        self.lazy_flags.op2 = imm as u8;
         let (val, o) = rd.overflowing_sub(imm as i8);
-        let mut sreg = Sreg(self.data_memory[SREG]);
-        sreg.set_z(val == 0);
-        sreg.set_n((val & -128) == -128);
-        sreg.set_c(imm > rd.abs() as u8);
-        sreg.set_s(o ^ sreg.get_n());
-        self.data_memory[SREG] = sreg.0;
+        self.lazy_flags.res = val as i16;
         #[cfg(feature = "std")]
         println!("CPI at {:x?}", self.pc);
         self.pc += 1;
@@ -155,17 +158,12 @@ impl CPU{
         };
         let rd = self.data_memory[rd as u16] as i8;
         let rr = self.data_memory[rr as u16] as i8;
-        let mut sreg = Sreg(self.data_memory[SREG]);
-        let c = sreg.get_c();
+        self.lazy_flags.op1 = rd as u8;
+        self.lazy_flags.op2 = rr as u8;
         let (val, o) = rd.overflowing_sub(rd as i8);
-
-        sreg.set_z(val == 0);
-        sreg.set_n((val & -128) == -128);
-        sreg.set_c(imm > rd.abs() as u8);
-        sreg.set_s(o ^ sreg.get_n());
-        self.data_memory[SREG] = sreg.0;
+        self.lazy_flags.res = val as i16;
         #[cfg(feature = "std")]
-        println!("CPI at {:x?}", self.pc);
+        println!("CPC at {:x?}", self.pc);
         self.pc += 1;
     }
     pub fn nop(&mut self, data:InstructionData){
@@ -179,6 +177,24 @@ impl CPU{
         #[cfg(feature = "std")]
         println!("LDI at {:x?}", self.pc);
         self.pc += 1;
+    }
+    pub fn brbc(&mut self, data:InstructionData){
+        let InstructionData::BR(flag, offset) = data else {
+            unreachable!();
+        };
+        #[cfg(feature = "std")]
+        println!("BRBC at {:x?}", self.pc);
+        if self.lazy_flags.calc_flag(flag) == false {
+            self.pc += offset as i16 as u16;
+        }
+        self.pc +=1;
+
+    }
+    pub fn bsetr(&mut self, data:InstructionData){
+        let InstructionData::BIT(set) = data else {
+            unreachable!();
+        };
+
     }
     pub fn translate(data:&[u16])->[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize]{
         let mut r:[(fn(&mut CPU, InstructionData), InstructionData );AVR_TYPE.flash_size as usize] = [(CPU::halt,InstructionData::NILL); AVR_TYPE.flash_size as usize];
@@ -259,8 +275,22 @@ impl CPU{
                     let reg_dest = (data[i] & 0x01F0) >> 4;
                     let reg_r = (data[i] & 0x000F) |((data[i] & 0x0200) >> 5);
                     r[i] = (CPU::cpc, InstructionData::DR(reg_dest as u8, reg_r as u8));
+                    #[cfg(feature = "std")]
                     println!("cpc rd:{:x}, rr:{:x}, i:{:x}",reg_dest,reg_r,i);
                 }
+                (0xF,0x4,_,_)|(0xF,0x5,_,_)|(0xF,0x6,_,_)|(0xF,0x7,_,_)=>{
+                    let bit_set = (data[i] & 0x0007) as u8;
+                    let offset = ((data[i] & 0x03F8)>>2) as i8 >> 1;
+                    r[i] = (CPU::brbc,BR(bit_set.into(), offset));
+                    #[cfg(feature = "std")]
+                    println!("cpc bit:{:x}, offset:{:x}, i:{:x}",bit_set, offset ,i);
+                }
+                (0x9,0x4,0x0,0x8)|(0x9,0x4,0x1,0x8)|(0x9,0x4,0x2,0x8)|(0x9,0x4,0x3,0x8)|(0x9,0x4,0x4,0x8)|(0x9,0x4,0x5,0x8)|(0x9,0x4,0x6,0x8)|(0x9,0x4,0x7,0x8) => {
+                    let bit_set = ((data[i] & 0x0070) >> 4) as u8;
+                    r[i] = ();
+
+                }
+
                 (_,_,_,_) => {
                     r[i] = (CPU::halt,InstructionData::NILL);
                     #[cfg(feature = "std")]
