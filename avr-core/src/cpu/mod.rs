@@ -8,13 +8,16 @@ mod exios;
 mod instructions;
 
 use core::ops::{IndexMut, Index};
+use std::path::absolute;
 use kind::AVRKind;
 use crate::cpu::fuses::Fuses;
 use sreg::Sreg;
 use crate::cpu::data_memory::DataMemory;
 use crate::cpu::instructions::InstructionData;
 use crate::cpu::kind::AVR_TYPE;
-
+pub const SPL: u16 = 0x5D;
+pub const SPH: u16 = 0x5E;
+pub const SREG:u16 = 0x5F;
 pub struct CPU{
     fuses: Fuses,
     instr_array:[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize],
@@ -38,8 +41,8 @@ impl CPU{
     pub fn run(&mut self){
         let instr_data = self.instr_array[self.pc as usize].1;
         self.instr_array[self.pc as usize].0(self, instr_data);
-        #[cfg(std)]
-        println!("Instr:{:x} \n PC:{:x}",instr, pc);
+        //#[cfg(feature = "std")]
+        //println!("Instr:{:x} \n PC:{:x}", self.pc);
     }
     pub fn halt(&mut self,  _data:InstructionData){
         panic!("HALT at {:x?}", self.pc)
@@ -48,41 +51,60 @@ impl CPU{
         let InstructionData::K(k) = data else {
             unreachable!();
         };
+        #[cfg(feature = "std")]
+        println!("JMP at {:x?} to {:x?}", self.pc, k);
         self.pc = k;
+
     }
     pub fn eor(&mut self,  data:InstructionData){
         let InstructionData::DR(d,r) = data else {
             unreachable!();
         };
         self.data_memory[d as u16] ^= self.data_memory[r as u16];
+        let mut sreg = Sreg(self.data_memory[SREG]);
+        sreg.set_v(false);
+        sreg.set_n(self.data_memory[d as u16] & 0x80 == 0x80);
+        sreg.set_z(self.data_memory[d as u16] & 0x00 == 0x00);
+        sreg.set_s(self.data_memory[d as u16] & 0x80 == 0x80);
+        self.data_memory[SREG] = sreg.0;
+        #[cfg(feature = "std")]
+        println!("EOR at {:x?}", self.pc);
+        self.pc += 1;
     }
     pub fn out(&mut self,  data:InstructionData){
         let InstructionData::DR(d, r) = data else {
             unreachable!();
         };
         self.data_memory[d as u16+32] = self.data_memory[r as u16];
+        #[cfg(feature = "std")]
+        println!("OUT at {:x?}", self.pc);
     }
     pub fn rjmp(&mut self, data:InstructionData){
+        #[cfg(feature = "std")]
+        println!("RJMP at {:x?}", self.pc);
+
         let InstructionData::SK(sk) = data else {
             unreachable!();
         };
         let pc = self.pc as i16;
-        self.pc = (sk + pc) as u16;
+        self.pc = (sk + pc + 1) as u16;
     }
     pub fn reti(&mut self, _data:InstructionData){
-        let sph = self.data_memory[0x5E] as u16;
-        let spl = self.data_memory[0x5D] as u16;
+        let sph = self.data_memory[SPH] as u16;
+        let spl = self.data_memory[SPL] as u16;
         let sp = sph << 8 | spl;
         let pch = self.data_memory[sp] as u16;
         let pcl = self.data_memory[sp+1] as u16;
         let sp = sp+2;
-        self.data_memory[0x5E] = (sp >> 8) as u8;
-        self.data_memory[0x5D] = spl as u8;
+        self.data_memory[SPH] = (sp >> 8) as u8;
+        self.data_memory[SPL] = spl as u8;
         let pc = pch << 8 | pcl;
-        let mut sreg = Sreg(self.data_memory[0x5F]);
+        let mut sreg = Sreg(self.data_memory[SREG]);
         sreg.set_i(true);
-        self.data_memory[0x5F] = sreg.0;
+        self.data_memory[SREG] = sreg.0;
         self.pc = pc;
+        #[cfg(feature = "std")]
+        println!("RETI at {:x?}", self.pc);
     }
     pub fn cpse(&mut self, data:InstructionData){
         let InstructionData::DR(d, r) = data else {
@@ -92,20 +114,71 @@ impl CPU{
             self.pc += 1;
         }
         self.pc += 1;
+        #[cfg(feature = "std")]
+        println!("CPSE at {:x?}", self.pc);
     }
     pub fn muls(&mut self, data:InstructionData){
         let InstructionData::DR(d, r) = data else {
             unreachable!();
         };
-        let rd = self.data_memory[d as u16+16] as i16;
+        let rd = self.data_memory[d as u16] as i16;
         let rr = self.data_memory[r as u16+16] as i16;
         let mult = rd * rr;
-        let mut sreg = Sreg(self.data_memory[0x5F]);
+        let mut sreg = Sreg(self.data_memory[SREG]);
         sreg.set_c((mult & (1<<15)) == (1<<15));
         sreg.set_z(mult == 0);
         self.data_memory[0] = mult as u8;
         self.data_memory[1] = (mult >> 8) as u8;
+        self.data_memory[SREG] = sreg.0;
+        #[cfg(feature = "std")]
+        println!("MULS at {:x?}", self.pc);
+    }
+    pub fn cpi(&mut self, data:InstructionData){
+        let InstructionData::DR(imm, reg) = data else {
+            unreachable!();
+        };
+        let rd = self.data_memory[reg as u16] as i8;
+        let (val, o) = rd.overflowing_sub(imm as i8);
+        let mut sreg = Sreg(self.data_memory[SREG]);
+        sreg.set_z(val == 0);
+        sreg.set_n((val & -128) == -128);
+        sreg.set_c(imm > rd.abs() as u8);
+        sreg.set_s(o ^ sreg.get_n());
+        self.data_memory[SREG] = sreg.0;
+        #[cfg(feature = "std")]
+        println!("CPI at {:x?}", self.pc);
+        self.pc += 1;
+    }
+    pub fn cpc(&mut self, data:InstructionData){
+        let InstructionData::DR(rd, rr) = data else {
+            unreachable!();
+        };
+        let rd = self.data_memory[rd as u16] as i8;
+        let rr = self.data_memory[rr as u16] as i8;
+        let mut sreg = Sreg(self.data_memory[SREG]);
+        let c = sreg.get_c();
+        let (val, o) = rd.overflowing_sub(rd as i8);
 
+        sreg.set_z(val == 0);
+        sreg.set_n((val & -128) == -128);
+        sreg.set_c(imm > rd.abs() as u8);
+        sreg.set_s(o ^ sreg.get_n());
+        self.data_memory[SREG] = sreg.0;
+        #[cfg(feature = "std")]
+        println!("CPI at {:x?}", self.pc);
+        self.pc += 1;
+    }
+    pub fn nop(&mut self, data:InstructionData){
+        println!("NOP at {:x?}", self.pc);
+    }
+    pub fn ldi(&mut self, data:InstructionData){
+        let InstructionData::DR(imm, reg) = data else {
+            unreachable!();
+        };
+        self.data_memory[reg as u16] = imm;
+        #[cfg(feature = "std")]
+        println!("LDI at {:x?}", self.pc);
+        self.pc += 1;
     }
     pub fn translate(data:&[u16])->[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize]{
         let mut r:[(fn(&mut CPU, InstructionData), InstructionData );AVR_TYPE.flash_size as usize] = [(CPU::halt,InstructionData::NILL); AVR_TYPE.flash_size as usize];
@@ -119,28 +192,32 @@ impl CPU{
             let op3 = ((d & 0x000F) >> 00) as u8;
             match (op0,op1,op2,op3) {
                 (0x0, 0x2, _, _) =>{
-                    let dest = (data[i]>>4)& 0x000F;
-                    let reg = data[i] & 0x000F;
+                    let dest = ((data[i]>>4)& 0x000F)as u8 +16;
+                    let reg = (data[i] & 0x000F)as u8 +16;
                     r[i] = (CPU::muls, InstructionData::DR(dest as u8, reg as u8));
+                    #[cfg(feature = "std")]
                     println!("muls d:{:x}, r:{:x}, i:{:x}", dest, reg, i);
                 }
                 (0x1, 0x0, _, _) |(0x1, 0x1, _, _) | (0x1, 0x2, _, _) | (0x1, 0x3, _, _) =>{
                     let dest = (data[i] & 0x01F0) >> 4;
                     let reg = (data[i] & 0x000F) |((data[i] & 0x0200) >> 5);
                     r[i] = (CPU::cpse, InstructionData::DR(dest as u8, reg as u8));
+                    #[cfg(feature = "std")]
                     println!("cpse d:{:x}, r:{:x}, i:{:x}", dest, reg, i);
                 },
                 (0x9,0x5,0x1,0x8) =>{
                     r[i] = (CPU::reti, InstructionData::NILL);
+                    #[cfg(feature = "std")]
                     println!("reti i:{:x}", i);
                 },
                 (0xC,_,_,_) => {
                     r[i] = (CPU::rjmp, InstructionData::SK(((data[i]<<4)as i16)>>4));
+                    #[cfg(feature = "std")]
                     println!("rjmp i:{:x}", i);
                 },
                 (0x9,0x4,_,0xC) |(0x9,0x4,_,0xD) | (0x9,0x5,_,0xC)| (0x9,0x5,_,0xD)=>{
                     r[i] = (CPU::jmp,InstructionData::K(data[i+1]));
-
+                    #[cfg(feature = "std")]
                     println!("jmp i:{:x}",i);
                     i+=1;
                 },
@@ -148,6 +225,7 @@ impl CPU{
                     let dest = (data[i] & 0x01F0) >> 4;
                     let reg = (data[i] & 0x000F) |((data[i] & 0x0200) >> 5);
                     r[i] = (CPU::eor, InstructionData::DR(dest as u8,reg as u8));
+                    #[cfg(feature = "std")]
                     println!("eor d:{:x}, r:{:x}, i:{:x}",dest,reg,i);
                 }
                 (0xB,0x8,_,_)|(0xB,0x9,_,_)|(0xB,0xA,_,_)|(0xB,0xB,_,_)|
@@ -155,12 +233,42 @@ impl CPU{
                     let reg = (data[i] & 0x01F0) >> 4;
                     let a = (data[i] & 0x000F) |((data[i] & 0x0600) >> 5);
                     r[i] = (CPU::out, InstructionData::DR(a as u8, reg as u8));
+                    #[cfg(feature = "std")]
                     println!("out io:{:x}, r:{:x}, i:{:x}",a,reg,i);
                 }
-                (_,_,_,_) => panic!("Unsupported instruction, {:#x?} at addr {:#x?}", d, i),
+                (0x3,_,_,_)=>{
+                    let reg = (((data[i] & 0x0F0) >> 4) + 0x10) as u8;
+                    let imm = (data[i] & 0x000F | ((data[i] & 0x0F00) >> 4)) as u8;
+                    r[i] = (CPU::cpi, InstructionData::DR(imm, reg));
+                    #[cfg(feature = "std")]
+                    println!("cpi imm:{:x},reg:{:x} i:{:x}",imm, reg, i);
+                }
+                (0x0,0x0,0x0,0x0)=>{
+                    r[i] = (CPU::nop, InstructionData::NILL);
+                    #[cfg(feature = "std")]
+                    println!("nop i:{:x}", i);
+                }
+                (0xE,_,_,_) => {
+                    let reg = (((data[i] & 0x0F0) >> 4) + 0x10) as u8;
+                    let imm = (data[i] & 0x000F | ((data[i] & 0x0F00) >> 4)) as u8;
+                    r[i] = (CPU::ldi, InstructionData::DR(imm, reg));
+                    #[cfg(feature = "std")]
+                    println!("ldi imm:{:x}, reg:{:x}, i:{:x}",imm,reg,i);
+                }
+                (0x0,0x4,_,_)|(0x0,0x5,_,_)|(0x0,0x6,_,_)|(0x0,0x7,_,_) =>{
+                    let reg_dest = (data[i] & 0x01F0) >> 4;
+                    let reg_r = (data[i] & 0x000F) |((data[i] & 0x0200) >> 5);
+                    r[i] = (CPU::cpc, InstructionData::DR(reg_dest as u8, reg_r as u8));
+                    println!("cpc rd:{:x}, rr:{:x}, i:{:x}",reg_dest,reg_r,i);
+                }
+                (_,_,_,_) => {
+                    r[i] = (CPU::halt,InstructionData::NILL);
+                    #[cfg(feature = "std")]
+                    println!("halt i:{:x}", i);
+                }
             }
             i+=1;
         }
-        r.clone()
+        r
     }
 }

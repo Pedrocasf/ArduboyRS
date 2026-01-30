@@ -2,12 +2,12 @@ use core::ops::{Index, IndexMut};
 use crate::cpu::sreg::Sreg;
 #[derive(Copy, Clone)]
 pub struct ExIOs{
-    sreg: Sreg,
+    //sreg: Sreg,
 }
 impl ExIOs {
     pub fn new() -> ExIOs {
         ExIOs {
-            sreg: Sreg::new(),
+            //sreg: Sreg::new(),
         }
     }
 }

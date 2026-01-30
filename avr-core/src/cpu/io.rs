@@ -22,9 +22,9 @@ impl Index<u16> for IOs {
     type Output = u8;
     fn index(&self, index: u16) -> &u8 {
         match index {
-            0x5F => &self.sreg.0,
-            0x5E => &self.sph,
-            0x5D => &self.spl,
+            0x3F => &self.sreg.0,
+            0x3E => &self.sph,
+            0x3D => &self.spl,
             _ => panic!("io {:x?} read accessed", index),
         }
     }
@@ -33,9 +33,9 @@ impl Index<u16> for IOs {
 impl IndexMut<u16> for IOs {
     fn index_mut(&mut self, index: u16) -> &mut u8 {
         match index{
-            0x5F => &mut self.sreg.0,
-            0x5E => &mut self.sph,
-            0x5D => &mut self.spl,
+            0x3F => &mut self.sreg.0,
+            0x3E => &mut self.sph,
+            0x3D => &mut self.spl,
             _ => panic!("io {:x?} write accessed", index),
         }
     }
