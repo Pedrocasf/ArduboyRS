@@ -19,7 +19,8 @@ pub enum Flag{
     S,
     H,
     T,
-    I
+    I,
+    C16
 }
 impl From<u8> for Flag{
     fn from(flag:u8) -> Self{
@@ -32,6 +33,7 @@ impl From<u8> for Flag{
             5 => Flag::H,
             6 => Flag::T,
             7 => Flag::I,
+            16 => Flag::C16,
             _=> unreachable!()
         }
     }
@@ -41,6 +43,7 @@ pub struct LazyFlags{
     pub op1: u8,
     pub op2: u8,
     pub res: i16,
+    pub is_16: bool
 }
 
 impl LazyFlags{
@@ -49,15 +52,20 @@ impl LazyFlags{
             op1:0,
             op2:0,
             res:0,
+            is_16: false
         }
     }
     pub fn calc_flag(&mut self, flag:Flag)->bool{
         match flag{
             Flag::C => {
-                let rd7 = self.op1 & 0x80 == 0x80;
-                let rr7 = self.op2 & 0x80 == 0x80;
-                let r7 = self.res & 0x80 == 0x80;
-                (rd7 & rr7) | (rr7 & !r7) | (!r7 & rd7)
+                if self.is_16{
+                    self.res  as u16 & 0x8000 == 0x8000
+                }else{
+                    let rd7 = self.op1 & 0x80 == 0x80;
+                    let rr7 = self.op2 & 0x80 == 0x80;
+                    let r7 = self.res & 0x80 == 0x80;
+                    (rd7 & rr7) | (rr7 & !r7) | (!r7 & rd7)
+                }
             }
             Flag::Z => {
                 self.res == 0
@@ -85,5 +93,14 @@ impl LazyFlags{
             }
             _=> unreachable!()
         }
+    }
+    pub fn calc_hsvnzc(&mut self) -> u8{
+        let c = (self.calc_flag(Flag::C) as u8) << 0;
+        let z = (self.calc_flag(Flag::Z) as u8) << 1;
+        let n = (self.calc_flag(Flag::C) as u8) << 2;
+        let v = (self.calc_flag(Flag::V) as u8) << 3;
+        let s = (self.calc_flag(Flag::S) as u8) << 4;
+        let h = (self.calc_flag(Flag::H) as u8) << 5;
+        h | s | v | n | z | c
     }
 }

@@ -74,6 +74,7 @@ impl CPU{
         let res = op1 ^ op2;
         self.data_memory[d as u16] = res;
         self.lazy_flags.res = res as i16;
+        self.lazy_flags.is_16 = false;
         #[cfg(feature = "std")]
         println!("EOR at {:x?}", self.pc);
         self.pc += 1;
@@ -85,6 +86,7 @@ impl CPU{
         self.data_memory[d as u16+32] = self.data_memory[r as u16];
         #[cfg(feature = "std")]
         println!("OUT at {:x?}", self.pc);
+        self.pc += 1;
     }
     pub fn rjmp(&mut self, data:InstructionData){
         #[cfg(feature = "std")]
@@ -134,6 +136,7 @@ impl CPU{
         self.lazy_flags.op2 = rr as u8;
         let mult = rd * rr;
         self.lazy_flags.res = mult;
+        self.lazy_flags.is_16 = true;
         self.data_memory[0] = mult as u8;
         self.data_memory[1] = (mult >> 8) as u8;
         #[cfg(feature = "std")]
@@ -148,6 +151,7 @@ impl CPU{
         self.lazy_flags.op2 = imm as u8;
         let (val, o) = rd.overflowing_sub(imm as i8);
         self.lazy_flags.res = val as i16;
+        self.lazy_flags.is_16 = false;
         #[cfg(feature = "std")]
         println!("CPI at {:x?}", self.pc);
         self.pc += 1;
@@ -162,6 +166,7 @@ impl CPU{
         self.lazy_flags.op2 = rr as u8;
         let (val, o) = rd.overflowing_sub(rd as i8);
         self.lazy_flags.res = val as i16;
+        self.lazy_flags.is_16 = false;
         #[cfg(feature = "std")]
         println!("CPC at {:x?}", self.pc);
         self.pc += 1;
@@ -194,7 +199,12 @@ impl CPU{
         let InstructionData::BIT(set) = data else {
             unreachable!();
         };
-
+        let calc_sreg = self.lazy_flags.calc_hsvnzc();
+        let bit_set = calc_sreg | 1<< set;
+        self.data_memory[SREG] = bit_set;
+        #[cfg(feature = "std")]
+        println!("BSETR at {:x?}", self.pc);
+        self.pc += 1;
     }
     pub fn translate(data:&[u16])->[(fn(&mut CPU, InstructionData), InstructionData);AVR_TYPE.flash_size as usize]{
         let mut r:[(fn(&mut CPU, InstructionData), InstructionData );AVR_TYPE.flash_size as usize] = [(CPU::halt,InstructionData::NILL); AVR_TYPE.flash_size as usize];
@@ -283,12 +293,13 @@ impl CPU{
                     let offset = ((data[i] & 0x03F8)>>2) as i8 >> 1;
                     r[i] = (CPU::brbc,BR(bit_set.into(), offset));
                     #[cfg(feature = "std")]
-                    println!("cpc bit:{:x}, offset:{:x}, i:{:x}",bit_set, offset ,i);
+                    println!("brbc bit:{:x}, offset:{:x}, i:{:x}",bit_set, offset ,i);
                 }
                 (0x9,0x4,0x0,0x8)|(0x9,0x4,0x1,0x8)|(0x9,0x4,0x2,0x8)|(0x9,0x4,0x3,0x8)|(0x9,0x4,0x4,0x8)|(0x9,0x4,0x5,0x8)|(0x9,0x4,0x6,0x8)|(0x9,0x4,0x7,0x8) => {
                     let bit_set = ((data[i] & 0x0070) >> 4) as u8;
-                    r[i] = ();
-
+                    r[i] = (CPU::bsetr, InstructionData::BIT(bit_set));
+                    #[cfg(feature = "std")]
+                    println!("bsetr bit:{:x}, i:{:x}",bit_set ,i);
                 }
 
                 (_,_,_,_) => {
