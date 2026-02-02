@@ -40,10 +40,10 @@ impl From<u8> for Flag{
 }
 #[derive(Clone,Copy)]
 pub struct LazyFlags{
+    pub is_16: bool,
     pub op1: u8,
     pub op2: u8,
     pub res: i16,
-    pub is_16: bool
 }
 
 impl LazyFlags{
@@ -102,5 +102,8 @@ impl LazyFlags{
         let s = (self.calc_flag(Flag::S) as u8) << 4;
         let h = (self.calc_flag(Flag::H) as u8) << 5;
         h | s | v | n | z | c
+    }
+    pub fn calc_snz_clear_v(&mut self) -> u8{
+        0
     }
 }

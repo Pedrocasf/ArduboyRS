@@ -9,14 +9,26 @@ pub enum InstructionData{
     SK(i16),
     BR(Flag, i8),
     BIT(u8),
+    DS(u8, u16)
 }
+#[repr(u8)]
 #[derive(Clone,Copy)]
 pub enum Instruction{
+    HALT,
     RJMP,
+    RETI,
+    CPSE,
     EOR,
     MULS,
     LDI,
     CPI,
     CPC,
+    BRBC,
+    BSETR,
+    OUT,
+    JMP,
     NOP,
+    RCALL,
+    LDS,
+    OR
 }

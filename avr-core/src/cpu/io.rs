@@ -9,6 +9,7 @@ pub struct IOs{
     sph:u8,
     spl:u8,
     ddrb:u8,
+    portb:u8
 }
 impl IOs {
     pub fn new() -> IOs {
@@ -17,6 +18,7 @@ impl IOs {
             sph:0,
             spl:0,
             ddrb:0,
+            portb:0
         }
     }
 }
@@ -28,6 +30,7 @@ impl Index<u16> for IOs {
             0x3E => &self.sph,
             0x3D => &self.spl,
             0x17 => &self.ddrb,
+            0x18 => &self.portb,
             _ => panic!("io 0x{:x?} read accessed", index),
         }
     }
@@ -40,6 +43,7 @@ impl IndexMut<u16> for IOs {
             0x3E => &mut self.sph,
             0x3D => &mut self.spl,
             0x17 => &mut self.ddrb,
+            0x18 => &mut self.portb,
             _ => panic!("io 0x{:x?} write accessed", index),
         }
     }

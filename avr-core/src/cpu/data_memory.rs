@@ -14,7 +14,7 @@ pub const IOS_RANGE:u16 = IOS_ADDR + IOS_SIZE;
 pub const EXIOS_ADDR:u16 = IOS_ADDR + IOS_SIZE;
 pub const EXIOS_SIZE:u16 = AVR_TYPE.exios_size;
 pub const EXIOS_RANGE:u16 = EXIOS_ADDR+EXIOS_SIZE;
-pub const SRAM_ADDR:u16 = EXIOS_ADDR+EXIOS_ADDR;
+pub const SRAM_ADDR:u16 = EXIOS_RANGE;
 pub const SRAM_SIZE:u16 = AVR_TYPE.sram_size;
 pub const SRAM_RANGE:u16 = SRAM_ADDR+SRAM_SIZE;
 pub struct DataMemory {
@@ -40,8 +40,8 @@ impl Index<u16> for DataMemory {
             REG_ADDR..REG_SIZE => &self.regs[index as usize],
             IOS_ADDR..=IOS_RANGE => &self.ios[index - REG_RANGE],
             EXIOS_ADDR..=EXIOS_RANGE => &self.exios[index - IOS_RANGE],
-            SRAM_ADDR..SRAM_RANGE => &self.sram[index as usize - EXIOS_RANGE as usize],
-            _=> unreachable!()
+            SRAM_ADDR..=SRAM_RANGE => &self.sram[index as usize - EXIOS_RANGE as usize],
+            _=> panic!("out of range read access:{:x}", index),
             }
         }
     }
@@ -49,11 +49,11 @@ impl Index<u16> for DataMemory {
 impl IndexMut<u16> for DataMemory {
     fn index_mut(&mut self, index: u16) -> &mut u8 {
         match index {
-            REG_ADDR..REG_SIZE => &mut self.regs[index as usize],
+            REG_ADDR..=REG_SIZE => &mut self.regs[index as usize],
             IOS_ADDR..=IOS_RANGE => &mut self.ios[index - REG_RANGE],
             EXIOS_ADDR..=EXIOS_RANGE => &mut self.exios[index - IOS_RANGE],
-            SRAM_ADDR..SRAM_RANGE => &mut self.sram[index as usize - EXIOS_RANGE as usize],
-            _=> unreachable!()
+            SRAM_ADDR..=SRAM_RANGE => &mut self.sram[index as usize - EXIOS_RANGE as usize],
+            _=> panic!("out of range write access:{:x}", index),
         }
     }
 }

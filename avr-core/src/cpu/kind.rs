@@ -1,5 +1,5 @@
 pub struct AVRKind{
-    pub flash_size:u16,
+    pub flash_size:u16,//in 16 bit words
     pub sram_size:u16,
     pub fuses:[u8;4],
     pub ios_size:u16,
