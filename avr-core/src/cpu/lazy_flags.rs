@@ -103,7 +103,10 @@ impl LazyFlags{
         let h = (self.calc_flag(Flag::H) as u8) << 5;
         h | s | v | n | z | c
     }
-    pub fn calc_snz_clear_v(&mut self) -> u8{
-        0
+    pub fn calc_snz(&mut self) -> u8{
+        let z = (self.calc_flag(Flag::Z) as u8) << 1;
+        let n = (self.calc_flag(Flag::C) as u8) << 2;
+        let s = (self.calc_flag(Flag::S) as u8) << 4;
+        z | n | s
     }
 }
