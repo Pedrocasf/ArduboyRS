@@ -30,5 +30,7 @@ pub enum Instruction{
     NOP,
     RCALL,
     LDS,
-    OR
+    OR,
+    MOVW,
+    ADD,
 }

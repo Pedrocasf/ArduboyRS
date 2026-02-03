@@ -24,6 +24,10 @@ mod tests{
             .collect();
         let mut core = cpu::CPU::new(file_u16.as_slice(), AVR_TYPE);
         loop{
+            if core.data_memory.ios.portb_changed{
+                println!("portb:{:b}", core.data_memory.ios.portb);
+                core.data_memory.ios.portb_changed = false;
+            }
             core.run();
         }
     }

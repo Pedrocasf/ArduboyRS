@@ -19,7 +19,7 @@ pub const SRAM_SIZE:u16 = AVR_TYPE.sram_size;
 pub const SRAM_RANGE:u16 = SRAM_ADDR+SRAM_SIZE;
 pub struct DataMemory {
     regs: [u8;REG_SIZE as usize],
-    ios: IOs,
+    pub ios: IOs,
     exios: ExIOs,
     sram: [u8;AVR_TYPE.sram_size as usize],
 }
